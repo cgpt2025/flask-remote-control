@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat - {{ ip_address }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: #e5ddd5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: #075e54;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h3 {
+            margin: 0;
+        }
+        
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .back-btn, .clear-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 3px;
+            text-decoration: none;
+        }
+        
+        .back-btn:hover, .clear-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .clear-btn {
+            font-size: 14px;
+        }
+        
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="2" fill="%23ffffff" opacity="0.1"/></svg>') repeat;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: flex-end;
+        }
+        
+        .message.sent {
+            justify-content: flex-end;
+        }
+        
+        .message.received {
+            justify-content: flex-start;
+        }
+        
+        .message-bubble {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            position: relative;
+            word-wrap: break-word;
+        }
+        
+        .message.sent .message-bubble {
+            background: #dcf8c6;
+            border-bottom-right-radius: 5px;
+        }
+        
+        .message.received .message-bubble {
+            background: white;
+            border-bottom-left-radius: 5px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+        
+        .message-text {
+            font-size: 14px;
+            line-height: 1.4;
+            color: #303030;
+            white-space: pre-wrap;
+        }
+        
+        .message-time {
+            font-size: 11px;
+            color: #999;
+            margin-top: 5px;
+            text-align: right;
+        }
+        
+        .message.received .message-time {
+            text-align: left;
+        }
+        
+        .input-container {
+            background: #f0f0f0;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .message-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 25px;
+            font-size: 14px;
+            outline: none;
+            resize: none;
+            max-height: 100px;
+            min-height: 40px;
+        }
+        
+        .send-btn {
+            width: 45px;
+            height: 45px;
+            background: #075e54;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        
+        .send-btn:hover {
+            background: #128c7e;
+        }
+        
+        .send-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .no-messages {
+            text-align: center;
+            color: #999;
+            margin-top: 50px;
+            font-style: italic;
+        }
+        
+        .connection-status {
+            background: #fff3cd;
+            color: #856404;
+            padding: 10px;
+            text-align: center;
+            font-size: 12px;
+            border-bottom: 1px solid #ffeaa7;
+        }
+        
+        .connection-status.connected {
+            background: #d4edda;
+            color: #155724;
+            border-bottom-color: #c3e6cb;
+        }
+        
+        .connection-status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border-bottom-color: #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/select-ip" class="back-btn">← Back</a>
+        <h3>Chat with {{ ip_address }}</h3>
+        <div class="header-buttons">
+            <button class="clear-btn" onclick="clearChat()">Clear Chat</button>
+        </div>
+    </div>
+    
+    <div class="connection-status" id="connectionStatus">
+        Connecting to {{ ip_address }}...
+    </div>
+    
+    <div class="chat-container">
+        <div class="messages" id="messages">
+            <div class="no-messages" id="noMessages">
+                No messages yet. Start the conversation!
+            </div>
+        </div>
+        
+        <div class="input-container">
+            <textarea class="message-input" id="messageInput" 
+                     placeholder="Type a message..." rows="1"></textarea>
+            <button class="send-btn" id="sendBtn" disabled>
+                ➤
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        const IP_ADDRESS = '{{ ip_address }}';
+        const messagesContainer = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const noMessages = document.getElementById('noMessages');
+        const connectionStatus = document.getElementById('connectionStatus');
+        
+        let lastMessageCount = 0;
+        let isConnected = false;
+        
+        // Auto-resize textarea
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+            
+            sendBtn.disabled = !this.value.trim();
+        });
+        
+        // Send message on Enter (Shift+Enter for new line)
+        messageInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+        
+        sendBtn.addEventListener('click', sendMessage);
+        
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+            
+            sendBtn.disabled = true;
+            messageInput.disabled = true;
+            
+            fetch('/api/send-message', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    ip: IP_ADDRESS,
+                    message: message
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    messageInput.value = '';
+                    messageInput.style.height = 'auto';
+                    loadMessages();
+                } else {
+                    alert('Failed to send message: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                alert('Error sending message: ' + error.message);
+            })
+            .finally(() => {
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+                messageInput.focus();
+            });
+        }
+        
+        function loadMessages() {
+            fetch(`/api/get-messages/${IP_ADDRESS}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.messages) {
+                        updateConnectionStatus('connected');
+                        displayMessages(data.messages);
+                        isConnected = true;
+                    } else {
+                        updateConnectionStatus('error');
+                    }
+                })
+                .catch(error => {
+                    updateConnectionStatus('error');
+                    console.error('Error loading messages:', error);
+                });
+        }
+        
+        function displayMessages(messages) {
+            if (messages.length === 0) {
+                noMessages.style.display = 'block';
+                return;
+            }
+            
+            noMessages.style.display = 'none';
+            
+            // Only update if message count changed
+            if (messages.length !== lastMessageCount) {
+                messagesContainer.innerHTML = '';
+                
+                messages.forEach(message => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `message ${message.type}`;
+                    
+                    messageDiv.innerHTML = `
+                        <div class="message-bubble">
+                            <div class="message-text">${escapeHtml(message.content)}</div>
+                            <div class="message-time">${message.timestamp}</div>
+                        </div>
+                    `;
+                    
+                    messagesContainer.appendChild(messageDiv);
+                });
+                
+                // Scroll to bottom
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                lastMessageCount = messages.length;
+            }
+        }
+        
+        function updateConnectionStatus(status) {
+            const statusEl = document.getElementById('connectionStatus');
+            statusEl.className = `connection-status ${status}`;
+            
+            switch(status) {
+                case 'connected':
+                    statusEl.textContent = `Connected to ${IP_ADDRESS}`;
+                    break;
+                case 'error':
+                    statusEl.textContent = `Connection error with ${IP_ADDRESS}`;
+                    break;
+                default:
+                    statusEl.textContent = `Connecting to ${IP_ADDRESS}...`;
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function clearChat() {
+            if (confirm('Are you sure you want to clear all chat history for this computer?')) {
+                fetch(`/api/clear-chat/${IP_ADDRESS}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        messagesContainer.innerHTML = '';
+                        noMessages.style.display = 'block';
+                        lastMessageCount = 0;
+                    } else {
+                        alert('Failed to clear chat: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    alert('Error clearing chat: ' + error.message);
+                });
+            }
+        }
+        
+        // Load messages periodically
+        function startPolling() {
+            loadMessages();
+            setInterval(loadMessages, {{ refresh_interval }}); // Configurable refresh interval
+        }
+        
+        // Start the application
+        startPolling();
+        messageInput.focus();
+    </script>
+</body>
+</html>
