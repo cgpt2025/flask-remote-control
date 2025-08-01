@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Redirecting...</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f4f4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        .message {
+            font-size: 1.2em;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="message">Fetching latest URL, please wait...</div>
+
+    <script>
+        const fileUrl = "https://raw.githubusercontent.com/cgpt2025/flask-remote-control/main/ngrok_url.txt";
+
+        fetch(fileUrl)
+            .then(response => {
+                if (!response.ok) throw new Error("Network error");
+                return response.text();
+            })
+            .then(text => {
+                const redirectUrl = text.trim();
+                if (redirectUrl) {
+                    window.location.href = redirectUrl;
+                } else {
+                    document.querySelector(".message").innerText = "No URL found in file.";
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                document.querySelector(".message").innerText = "Error fetching the URL.";
+            });
+    </script>
+</body>
+</html>
