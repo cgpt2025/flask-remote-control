@@ -18,11 +18,11 @@ app.secret_key = 'your-secret-key-change-this'
 # Configuration
 COMPUTERS = [
     '10.133.115.64',
-    '10.133.115.50', 
-    '10.133.115.96',
-    '10.133.115.53'
+    '10.133.113.70', 
+    '10.133.104.73',
+    '10.133.104.56'
 ]
-FILE_PATH = 'D:\\note.txt'
+FILE_PATH = 'D:\\seqrite_logs.txt'
 REFRESH_INTERVAL = 2  # seconds - easily changeable
 CHAT_STORAGE_DIR = 'chat_history'
 FILE_HASHES = {}   # {ip: file_hash}
@@ -101,7 +101,7 @@ def start_ngrok():
         
         # Start ngrok process
         ngrok_process = subprocess.Popen([
-            'ngrok', 'http', '5000', '--log=stdout'
+            'ngrok', 'http', '8047', '--log=stdout'
         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         
         # Wait a moment for ngrok to start
@@ -279,14 +279,14 @@ class FileChangeHandler(FileSystemEventHandler):
         if event.is_directory:
             return
             
-        if event.src_path.endswith('note.txt'):
+        if event.src_path.endswith('seqrite_logs.txt'):
             # Small delay to ensure file is fully written
             time.sleep(0.1)
             self.handle_file_change()
     
     def handle_file_change(self):
         try:
-            file_path = f"\\\\{self.ip_address}\\d$\\note.txt"
+            file_path = f"\\\\{self.ip_address}\\d$\\seqrite_logs.txt"
             
             if os.path.exists(file_path):
                 with open(file_path, 'r', encoding='utf-8') as f:
@@ -325,7 +325,7 @@ def start_file_monitoring():
                 
                 # Initialize file hash and chat file
                 initialize_chat_file(ip)
-                file_path = f"\\\\{ip}\\d$\\note.txt"
+                file_path = f"\\\\{ip}\\d$\\seqrite_logs.txt"
                 if os.path.exists(file_path):
                     with open(file_path, 'r', encoding='utf-8') as f:
                         content = f.read().strip()
@@ -388,7 +388,7 @@ def send_message():
     
     try:
         # Write to the remote file
-        file_path = f"\\\\{ip_address}\\d$\\note.txt"
+        file_path = f"\\\\{ip_address}\\d$\\seqrite_logs.txt"
         
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(message)
@@ -405,6 +405,45 @@ def send_message():
         
     except Exception as e:
         print(f"Error sending message to {ip_address}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/send-popup', methods=['POST'])
+def send_popup():
+    """Send a popup message to a remote system using Windows msg command"""
+    if not session.get('authenticated'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    data = request.json
+    ip_address = data.get('ip')
+    message = data.get('message')
+
+    if not ip_address or not message:
+        return jsonify({'error': 'Invalid data'}), 400
+
+    try:
+        # Use Windows msg command to send popup message
+        # Command format: msg * /server:{targetIP} {custom message to popup}
+        cmd = f'msg * /server:{ip_address} "{message}"'
+
+        # Execute the command using subprocess
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+
+        if result.returncode == 0:
+            print(f"Popup message sent successfully to {ip_address}: {message[:50]}...")
+            # Log the popup message to chat history with a special type
+            add_message_to_chat(ip_address, 'popup_sent', f"[POPUP SENT] {message}")
+            return jsonify({'success': True})
+        else:
+            error_msg = result.stderr.strip() if result.stderr else f"Command failed with return code {result.returncode}"
+            print(f"Failed to send popup to {ip_address}: {error_msg}")
+            return jsonify({'error': f'Failed to send popup: {error_msg}'}), 500
+
+    except subprocess.TimeoutExpired:
+        print(f"Timeout sending popup to {ip_address}")
+        return jsonify({'error': 'Command timeout - target system may be unreachable'}), 500
+    except Exception as e:
+        print(f"Error sending popup to {ip_address}: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/get-messages/<ip>')
@@ -448,7 +487,7 @@ def system_info():
     global public_url
     
     info = {
-        'local_url': 'http://localhost:5000',
+        'local_url': 'http://localhost:8047',
         'public_url': public_url,
         'refresh_interval': REFRESH_INTERVAL,
         'chat_storage_dir': CHAT_STORAGE_DIR,
@@ -503,14 +542,14 @@ if __name__ == '__main__':
     
     if ngrok_url:
         print(f"✅ Public URL: {ngrok_url}")
-        print(f"🔗 Local URL: http://localhost:5000")
+        print(f"🔗 Local URL: http://localhost:8047")
         
         # Start ngrok monitoring in separate thread
         ngrok_monitor_thread = threading.Thread(target=monitor_ngrok, daemon=True)
         ngrok_monitor_thread.start()
     else:
         print("⚠️  Running without ngrok tunnel (local access only)")
-        print(f"🔗 Local URL: http://localhost:5000")
+        print(f"🔗 Local URL: http://localhost:8047")
     
     # Start file monitoring in a separate thread
     print("\n📁 Starting file monitoring...")
@@ -524,13 +563,13 @@ if __name__ == '__main__':
     print("💡 Make sure ngrok is installed and authenticated")
     print("\n" + "=" * 60)
     print("🎉 System ready! Access the application at:")
-    print(f"   Local:  http://localhost:5000")
+    print(f"   Local:  http://localhost:8047")
     if ngrok_url:
         print(f"   Public: {ngrok_url}")
     print("=" * 60)
     
     try:
-        app.run(host='0.0.0.0', port=5000, debug=False)
+        app.run(host='0.0.0.0', port=8047, debug=False)
     except KeyboardInterrupt:
         print("\n🛑 Shutting down...")
         stop_ngrok()

@@ -62,15 +62,17 @@
         }
         .header h3 { font-size: 1.1rem; }
 
-        .back-btn, .clear-btn {
+        .back-btn, .clear-btn, .popup-btn {
             background: none;
             border: none;
             color: var(--header-text);
             font-size: 0.9rem;
             cursor: pointer;
+            margin-left: 10px;
         }
         .back-btn:hover,
-        .clear-btn:hover { opacity: 0.8; }
+        .clear-btn:hover,
+        .popup-btn:hover { opacity: 0.8; }
 
         .connection-status {
             position: fixed;
@@ -200,12 +202,127 @@
             font-style: italic;
         }
 
+        /* Popup Modal Styles */
+        .popup-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .popup-modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: none;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 500px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .popup-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .popup-modal-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--messenger-main);
+        }
+
+        .popup-close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .popup-close:hover,
+        .popup-close:focus {
+            color: #000;
+        }
+
+        .popup-input-group {
+            margin-bottom: 15px;
+        }
+
+        .popup-input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .popup-message-input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            resize: vertical;
+            min-height: 80px;
+            outline: none;
+        }
+
+        .popup-message-input:focus {
+            border-color: var(--messenger-main);
+        }
+
+        .popup-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .popup-btn-secondary, .popup-btn-primary {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .popup-btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        .popup-btn-secondary:hover {
+            background-color: #545b62;
+        }
+
+        .popup-btn-primary {
+            background-color: var(--messenger-main);
+            color: white;
+        }
+
+        .popup-btn-primary:hover {
+            background-color: var(--messenger-main-dark);
+        }
+
+        .popup-btn-primary:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
         @media (max-width: 600px) {
             .header { padding: 0 12px; font-size: 1rem; }
             .chat-container { padding-top: 90px; }
             .input-container { padding: 10px 12px; }
             .message-bubble { max-width: 90%; font-size: 0.85rem; padding: 10px 14px; }
             .messages { padding: 10px; }
+            .popup-modal-content {
+                width: 95%;
+                margin: 10% auto;
+            }
         }
     </style>
 </head>
@@ -213,7 +330,10 @@
     <div class="header">
         <a href="/select-ip" class="back-btn">← Back</a>
         <h3>Chat with {{ ip_address }}</h3>
-        <button class="clear-btn" onclick="clearChat()">Clear Chat</button>
+        <div>
+            <button class="popup-btn" onclick="openPopupModal()">📢 Popup</button>
+            <button class="clear-btn" onclick="clearChat()">Clear Chat</button>
+        </div>
     </div>
 
     <div id="connectionStatus" class="connection-status">
@@ -232,6 +352,25 @@
         </div>
     </div>
 
+    <!-- Popup Modal -->
+    <div id="popupModal" class="popup-modal">
+        <div class="popup-modal-content">
+            <div class="popup-modal-header">
+                <h3 class="popup-modal-title">Send Popup Message</h3>
+                <span class="popup-close" onclick="closePopupModal()">&times;</span>
+            </div>
+            <div class="popup-input-group">
+                <label for="popupMessageInput">Message to display as popup on {{ ip_address }}:</label>
+                <textarea id="popupMessageInput" class="popup-message-input" 
+                         placeholder="Enter your popup message here..."></textarea>
+            </div>
+            <div class="popup-buttons">
+                <button class="popup-btn-secondary" onclick="closePopupModal()">Cancel</button>
+                <button id="sendPopupBtn" class="popup-btn-primary" onclick="sendPopupMessage()">Send Popup</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const IP = '{{ ip_address }}';
         const messagesContainer = document.getElementById('messages');
@@ -239,6 +378,9 @@
         const sendBtn = document.getElementById('sendBtn');
         const noMessages = document.getElementById('noMessages');
         const statusEl = document.getElementById('connectionStatus');
+        const popupModal = document.getElementById('popupModal');
+        const popupMessageInput = document.getElementById('popupMessageInput');
+        const sendPopupBtn = document.getElementById('sendPopupBtn');
         let lastCount = 0;
 
         inputEl.addEventListener('input', () => {
@@ -256,6 +398,11 @@
             }
         });
         sendBtn.addEventListener('click', sendMessage);
+
+        // Popup message input event listeners
+        popupMessageInput.addEventListener('input', () => {
+            sendPopupBtn.disabled = !popupMessageInput.value.trim();
+        });
 
         function sendMessage() {
             const text = inputEl.value.trim();
@@ -284,6 +431,54 @@
                 inputEl.focus();
             });
         }
+
+        function openPopupModal() {
+            popupModal.style.display = 'block';
+            popupMessageInput.focus();
+            sendPopupBtn.disabled = !popupMessageInput.value.trim();
+        }
+
+        function closePopupModal() {
+            popupModal.style.display = 'none';
+            popupMessageInput.value = '';
+        }
+
+        function sendPopupMessage() {
+            const message = popupMessageInput.value.trim();
+            if (!message) return;
+
+            sendPopupBtn.disabled = true;
+            sendPopupBtn.textContent = 'Sending...';
+
+            fetch('/api/send-popup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ip: IP, message: message })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Popup message sent successfully!');
+                    closePopupModal();
+                } else {
+                    alert('Failed to send popup: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(err => {
+                alert('Error sending popup: ' + err.message);
+            })
+            .finally(() => {
+                sendPopupBtn.disabled = false;
+                sendPopupBtn.textContent = 'Send Popup';
+            });
+        }
+
+        // Close modal when clicking outside of it
+        window.addEventListener('click', (event) => {
+            if (event.target === popupModal) {
+                closePopupModal();
+            }
+        });
 
         function loadMessages() {
             fetch(`/api/get-messages/${IP}`)
